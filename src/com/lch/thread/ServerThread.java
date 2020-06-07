@@ -1,15 +1,10 @@
 package com.lch.thread;
 
-import com.lch.cfgreader.CfgReader;
+import com.lch.findservlet.ServletController;
 import com.lch.httpresource.HttpServletRequest;
 import com.lch.httpresource.HttpServletResponse;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.io.*;
 import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
@@ -60,50 +55,48 @@ public class ServerThread extends Thread{
 
     // 解析map中的参数
     private void parseParam(Map map) {
+        Map<String, String> paramMap = null;
+        String resourceName = "";
         String contentAndParam = (String) map.get("contentAndParam");
         int questionMarkIndex = contentAndParam.indexOf("?");//问号的位置
-        String resourceName = contentAndParam.substring(1,questionMarkIndex);//资源名字
-        //resourceName.split("/");
-        String allKeyAndParam = contentAndParam.substring(questionMarkIndex);
-        // 把所有的key和value拆成一组一组的 按照“&”
-        String[] keysAndParams = allKeyAndParam.split("&");
-        Map<String,String> paramMap = new HashMap<>();// 把遍历得到的key和value装入这个集合 以便后面使用
-        for (String keyAndParam:keysAndParams) {
-            String[] KV = keyAndParam.split("=");
-            paramMap.put(KV[0],KV[1]);
+        if (questionMarkIndex != -1) {//如果问号存在
+            resourceName = contentAndParam.substring(1, questionMarkIndex);//资源名字
+            //resourceName.split("/");
+            String allKeyAndParam = contentAndParam.substring(questionMarkIndex);
+            // 把所有的key和value拆成一组一组的 按照“&”
+            String[] keysAndParams = allKeyAndParam.split("&");
+            paramMap = new HashMap<>();// 把遍历得到的key和value装入这个集合 以便后面使用
+            for (String keyAndParam : keysAndParams) {
+                String[] KV = keyAndParam.split("=");
+                paramMap.put(KV[0], KV[1]);
+            }
+        } else {
+            // 问号不存在
+            resourceName = contentAndParam.substring(1);
         }
         // 做完这些  把资源名和参数都携带好  可以通过对象
         // HttpServletRequest这个类用来存放请求携带的参数
         HttpServletRequest request = new HttpServletRequest(resourceName,paramMap);
         HttpServletResponse response = new HttpServletResponse();
-        this.findController(request,response);
+        ServletController.findController(request,response);
+        // 把响应信息写到输出流中
+        this.responseToBrowser(response);
     }
 
-    // 找寻在服务器中对应请求的资源  控制层
-    private void findController(HttpServletRequest request , HttpServletResponse response) {
-        String resourceName = request.getResourceName();
-        //去web.properties文件中找到该请求名字对应的controller类
-        //去找到一个叫inedex的控制层
-        String controllerName = CfgReader.webConfigReader(resourceName);
+    //响应信息
+    public void responseToBrowser(HttpServletResponse response) {
         try {
-            //通过反射 用得到的名字取找寻controller类
-            Class clazz = Class.forName(controllerName);
-            Object obj = clazz.newInstance();
-            // 找到类中service方法
-            Method method = clazz.getMethod("service",HttpServletRequest.class,HttpServletResponse.class);
-            method.invoke(obj,request,response);
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        } catch (NoSuchMethodException e) {
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        } catch (InstantiationException e) {
-            e.printStackTrace();
-        } catch (InvocationTargetException e) {
+            OutputStream outputStream = socket.getOutputStream();
+            PrintWriter writer = new PrintWriter(outputStream);
+            // 把响应信息写回输出流中
+            String value = response.getResponseContent();
+            writer.println(value);
+            writer.flush();
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
+
 
 
 }
