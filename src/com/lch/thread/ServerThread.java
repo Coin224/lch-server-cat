@@ -89,8 +89,13 @@ public class ServerThread extends Thread{
             OutputStream outputStream = socket.getOutputStream();
             PrintWriter writer = new PrintWriter(outputStream);
             // 把响应信息写回输出流中
-            String value = response.getResponseContent();
-            writer.println(value);
+            // 写回给浏览器也需要遵循HTTP协议
+            String result = response.getResponseContent();
+            String message = "HTTP1.1 200 OK\r\n" +
+                    "Content-Type:text/html;charset=UTF-8\r\n" +
+                    "\r\n" +
+                    result;
+            writer.println(message);
             writer.flush();
         } catch (IOException e) {
             e.printStackTrace();
